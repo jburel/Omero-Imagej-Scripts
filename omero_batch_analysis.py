@@ -35,155 +35,126 @@ from loci.formats.in import DefaultMetadataOptions
 from loci.formats.in import MetadataLevel
 from ij import IJ
 
-def openImagePlus(HOST,USERNAME,PASSWORD,groupId,imageId):
-    
-    options = ""
-        options += "location=[OMERO] open=[omero:server="
-        options += HOST
-        options += "\nuser="
-        options += USERNAME
-        options += "\npass="
-        options += PASSWORD
-        options += "\ngroupID="
-        options += groupId
-        options += "\niid="
-        options += imageId
-        options += "]"
-        options += " windowless=true "
-        
-        IJ.runPlugIn("loci.plugins.LociImporter", options);
-
-def omeroConnect():
-    
-    # Omero Connect with credentials and simpleLogger
-    cred = LoginCredentials()
-        cred.getServer().setHostname(HOST)
-        cred.getServer().setPort(PORT)
-        cred.getUser().setUsername(USERNAME.strip())
-        cred.getUser().setPassword(PASSWORD.strip())
-        simpleLogger = SimpleLogger()
-        gateway = Gateway(simpleLogger)
-        gateway.connect(cred)
-        return gateway
-
-# List all ImageId's under a Project/Dataset
-def getImageIds(gateway, datasetId):
-    
-    browse = gateway.getFacility(BrowseFacility)
-        user = gateway.getLoggedInUser()
-        ctx = SecurityContext(user.getGroupId())
-        ids = ArrayList(1)
-        val = Long(datasetId)
-        ids.add(val)
-        images = browse.getImagesForDatasets(ctx, ids)
-        j = images.iterator()
-        imageIds = []
-        while j.hasNext():
-            image = j.next()
-                imageIds.append(String.valueOf(image.getId()))
-        return imageIds
-
-
-def uploadImage(path, gateway):
-    
-    user = gateway.getLoggedInUser()
-        ctx = SecurityContext(user.getGroupId())
-        sessionKey = gateway.getSessionId(user)
-        
-        config = ImportConfig()
-        
-        config.email.set("")
-        config.sendFiles.set('true')
-        config.sendReport.set('false')
-        config.contOnError.set('false')
-        config.debug.set('false')
-        config.hostname.set(HOST)
-        config.sessionKey.set(sessionKey)
-        config.targetClass.set("omero.model.Dataset")
-        config.targetId.set(datasetId)
-        
-        loci.common.DebugTools.enableLogging("DEBUG")
-        
-        store = config.createStore()
-        reader = OMEROWrapper(config)
-        
-        library = ImportLibrary(store,reader)
-        errorHandler = ErrorHandler(config)
-        
-        library.addObserver(LoggingImportMonitor())
-        candidates = ImportCandidates (reader, path, errorHandler)
-        reader.setMetadataOptions(DefaultMetadataOptions(MetadataLevel.ALL))
-        success = library.importCandidates(config, candidates)
-        return success
 
 # Setup
 # =====
 
-# Drop omero_client.jar and Blitz.jar under the jars folder of FIJI
-
-# Parameters
-# ==========
-
-# open Omero Image
-# ================
-
-#OMERO Server details
-HOST = "omero-latest-analysis.docker.openmicroscopy.org"
+# OMERO Server details
+HOST = "eel.openmicroscopy.org"
 PORT = 4064
-datasetId = "1"
-groupId = "-1"
+PASSWORD = ""
+group_id = "-1"
 
-#Credentials stored in a text file
-#Format : username = USERNAME
-#Format : password = PASSWORD
-CREDENTIALS = "/Users/bramalingam/Desktop/FijiDemonstration/credentials.txt"
+#  parameters to edit
+dataset_id = ""
+USERNAME = ""
 
-# File path to the ImageJ/FIJI macro
-macroFilePath = "/Users/bramalingam/Desktop/FijiDemonstration/bg_subtract.ijm"
-operation = "_bg_subtract"
-# Bio-Formats exports the processed images to the following path
-paths= "/Users/bramalingam/Desktop/FijiDemonstration/"
 
-#for demo alone
-myvars = {}
-myfile = open(CREDENTIALS)
-for line in myfile:
-    name, var = line.partition("=")[::2]
-    myvars[name.strip()] = var.strip()
-USERNAME = myvars['username']
-PASSWORD = myvars['password']
+def open_image_plus(HOST, USERNAME, PASSWORD, PORT, group_id, image_id):
+
+    options = ""
+    options += "location=[OMERO] open=[omero:server="
+    options += HOST
+    options += "\nuser="
+    options += USERNAME
+    options += "\nport="
+    options += str(PORT)
+    options += "\npass="
+    options += PASSWORD
+    options += "\ngroupID="
+    options += group_id
+    options += "\niid="
+    options += image_id
+    options += "]"
+    options += " windowless=true "
+    IJ.runPlugIn("loci.plugins.LociImporter", options)
+
+
+def connect_to_omero():
+    "Connect to OMERO"
+
+    credentials = LoginCredentials()
+    credentials.getServer().setHostname(HOST)
+    credentials.getServer().setPort(PORT)
+    credentials.getUser().setUsername(USERNAME.strip())
+    credentials.getUser().setPassword(PASSWORD.strip())
+    simpleLogger = SimpleLogger()
+    gateway = Gateway(simpleLogger)
+    gateway.connect(credentials)
+    return gateway
+
+
+def get_image_ids(gateway, dataset_id):
+    "List all image's ids contained in a Dataset"
+
+    browse = gateway.getFacility(BrowseFacility)
+    user = gateway.getLoggedInUser()
+    ctx = SecurityContext(user.getGroupId())
+    ids = ArrayList(1)
+    val = Long(dataset_id)
+    ids.add(val)
+    images = browse.getImagesForDatasets(ctx, ids)
+    j = images.iterator()
+    image_ids = []
+    while j.hasNext():
+        image = j.next()
+        image_ids.append(String.valueOf(image.getId()))
+    return image_ids
+
+
+def upload_image(path, gateway):
+    "Upload an image to omero"
+
+    user = gateway.getLoggedInUser()
+    sessionKey = gateway.getSessionId(user)
+
+    config = ImportConfig()
+    config.debug.set('false')
+    config.hostname.set(HOST)
+    config.sessionKey.set(sessionKey)
+    value = "omero.model.Dataset:"
+    value += str(dataset_id)
+    config.target.set(value)
+
+    loci.common.DebugTools.enableLogging("DEBUG")
+
+    store = config.createStore()
+    reader = OMEROWrapper(config)
+
+    library = ImportLibrary(store, reader)
+    error_handler = ErrorHandler(config)
+
+    library.addObserver(LoggingImportMonitor())
+    candidates = ImportCandidates(reader, path, error_handler)
+    reader.setMetadataOptions(DefaultMetadataOptions(MetadataLevel.ALL))
+    return library.importCandidates(config, candidates)
+
 
 # Prototype analysis example
-gateway = omeroConnect()
-imageIds = getImageIds(gateway,datasetId);
-imageIds.sort()
+gateway = connect_to_omero()
+image_ids = get_image_ids(gateway, dataset_id)
 
-for imageId in imageIds:
-    #	imageId = imageIds[2]
-    print imageId
-        openImagePlus(HOST,USERNAME,PASSWORD,groupId,imageId)
-        IJ.run("Enhance Contrast", "saturated=0.35");
-        #Plug Your analysis here#
-        
-        IJ.runMacroFile(macroFilePath)
-        
-        #	Save resultant image using Bio-Formats
-        imp = IJ.getImage();
-        path = paths + imp.getTitle() + operation + ".ome.tiff";
-        print(path)
-        options = "save=" + path + " export compression=Uncompressed"
-        IJ.run(imp, "Bio-Formats Exporter", options);
-        imp.changes = False
-        imp.close()
-        
-        #	Upload image to OMERO
-        str2d = java.lang.reflect.Array.newInstance(java.lang.String,[1])
-        str2d [0] = path
-        success = uploadImage(str2d, gateway)
+for image_id in image_ids:
+    print(""+image_id)
+    open_image_plus(HOST, USERNAME, PASSWORD, PORT, group_id, image_id)
+    IJ.run("Enhance Contrast...", "saturated=0.3")
+    IJ.run("Subtract Background...", "rolling=50 stack")
+
+    # Save modified image as OME-TIFF using Bio-Formats
+    imp = IJ.getImage()
+    path = imp.getTitle() + ".ome.tiff"
+    print(path)
+    options = "save=" + path + " export compression=Uncompressed"
+    IJ.run(imp, "Bio-Formats Exporter", options)
+    imp.changes = False
+    imp.close()
+
+    # Upload image to OMERO
+    print("uploading...")
+    str2d = java.lang.reflect.Array.newInstance(java.lang.String, [1])
+    str2d[0] = path
+    success = upload_image(str2d, gateway)
+    print("imported")
 
 print("Done")
-#success = uploadImage(str2d, gateway)
-gateway.disconnect()	
-
-
-
+gateway.disconnect()
